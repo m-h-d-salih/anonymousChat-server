@@ -1,7 +1,11 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { User } from '@prisma/client';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
@@ -16,4 +20,22 @@ export class AuthController {
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
   }
+
+    @Get('me')
+  @UseGuards(JwtAuthGuard)
+  me(@CurrentUser() user: Omit<User, 'password'>) {
+    return user;
+  }
+
+  @Get('google')
+@UseGuards(AuthGuard('google'))
+googleAuth() {
+  // empty on purpose — the guard does the redirect
+}
+
+@Get('google/callback')
+@UseGuards(AuthGuard('google'))
+googleAuthCallback(@Req() req: Request) {
+  return this.auth.googleLogin((req as any).user);
+}
 }

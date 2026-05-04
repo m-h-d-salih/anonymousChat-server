@@ -42,4 +42,39 @@ export class AuthService {
     const accessToken = this.jwt.sign({ sub, email });
     return { accessToken };
   }
+
+  async googleLogin(googleUser: {
+  googleId: string;
+  email: string;
+  displayName: string;
+  profilePictureUrl?: string;
+}) {
+  let user = await this.prisma.user.findUnique({
+    where: { googleId: googleUser.googleId },
+  });
+
+  if (!user) {
+    user = await this.prisma.user.findUnique({ where: { email: googleUser.email } });
+
+    if (user) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { googleId: googleUser.googleId },
+      });
+    } else {
+      user = await this.prisma.user.create({
+        data: {
+          email: googleUser.email,
+          googleId: googleUser.googleId,
+          displayName: googleUser.displayName,
+          profilePictureUrl: googleUser.profilePictureUrl,
+        },
+      });
+    }
+  }
+
+  if (user.isBanned) throw new UnauthorizedException('Account suspended');
+
+  return this.issueToken(user.id, user.email);
+}
 }
