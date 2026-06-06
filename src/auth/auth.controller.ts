@@ -11,8 +11,16 @@ import { AuthGuard } from '@nestjs/passport';
 export class AuthController {
   constructor(private auth: AuthService) {}
 
+  /*
+  @Body()      →  "Nest, fill this parameter with request.body"
+  dto          →  "I'll refer to it as 'dto' in my code"
+  SignupDto   →  "TypeScript, it should have email, password, displayName"
+  */
   @Post('signup')
-  signup(@Body() dto: SignupDto) {
+  signup(@Body()  //decorator = where should get the data
+   dto: // varibale = where the data holded
+   SignupDto // ts type =it should have email, password, displayName
+  ) {
     return this.auth.signup(dto);
   }
 

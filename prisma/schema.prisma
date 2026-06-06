@@ -14,7 +14,7 @@ datasource db {
 }
 
 model User {
-  id                String    @id  @default(uuid())
+  id                String    @id @default(uuid())
   email             String    @unique
   password          String?
   googleId          String?   @unique
@@ -24,4 +24,28 @@ model User {
   isBanned          Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  contactsAsUser1   Contact[] @relation("contactsAsUser1")
+  contactsAsUser2   Contact[] @relation("contactsAsUser2")
+  messagesSent      Message[] @relation("messagesSent")
+}
+
+model Contact {
+  id        String    @id @default(uuid())
+  user1Id   String
+  user1     User      @relation("contactsAsUser1", fields: [user1Id], references: [id])
+  user2Id   String
+  user2     User      @relation("contactsAsUser2", fields: [user2Id], references: [id])
+  createdAt DateTime  @default(now())
+  messages  Message[]
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id])
+  senderId  String
+  sender    User     @relation("messagesSent", fields: [senderId], references: [id])
+  text      String
+  createdAt DateTime @default(now())
 }
