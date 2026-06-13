@@ -8,6 +8,9 @@ import { WebSocketGateway,
  } from "@nestjs/websockets";
 
  import { Server,Socket } from "socket.io";
+import { WsCurrentUser } from "./decorators/ws-current-user.decorator";
+import { UseGuards } from "@nestjs/common";
+import { WsAuthGuard } from "./guards/ws-auth.guard";
 
  @WebSocketGateway({
   cors:{origin:'*'}
@@ -32,34 +35,38 @@ import { WebSocketGateway,
   client              →  "I'll refer to it as 'client' in my code"  
   : Socket            →  "TypeScript, it should have .join(), .to(), .emit(), .id, etc."
   */
+ @UseGuards(WsAuthGuard)
   @SubscribeMessage('joinRoom')
   handleJoinRoom(
     @ConnectedSocket() client:Socket,
-    @MessageBody() roomId:string
+    @MessageBody() roomId:string,
+    @WsCurrentUser() user:any
   ){
     client.join(roomId)
-    console.log(`Client ${client.id} joined room ${roomId}`);
+    console.log(`Client ${user.displayName} joined room ${roomId}`);
 
     // Notify others in the room
-    client.to(roomId).emit('userJoined',{userId:client.id})
+    client.to(roomId).emit('userJoined',{userId:client.id,displayName:user.displayName})
 
     return {event:'joinedRoom',data:roomId}
   }
 
   // Client sends "sendMessage" event → we forward to the room
+  @UseGuards(WsAuthGuard)
   @SubscribeMessage('sendMessage')
   handleMessage(
     @ConnectedSocket()
-     client:
-     Socket,
-    @MessageBody() payload:{roomId:string;message:string}
+     client:Socket,
+    @MessageBody() payload:{roomId:string;message:string},
+    @WsCurrentUser() user: any,
   ){
-     console.log(`Message in ${payload.roomId}: ${payload.message}`);
+     console.log(`${user.displayName} in ${payload.roomId}: ${payload.message}`);
 
-     client.to(payload.roomId).emit('new message',{
-      sender:client.id,
-      message:payload.message,
-       timestamp: new Date().toISOString(),
-     })
+      client.to(payload.roomId).emit('newMessage', {
+      senderId: user.id,
+      displayName: user.displayName,
+      message: payload.message,
+      timestamp: new Date().toISOString(),
+    });
   }
  }
