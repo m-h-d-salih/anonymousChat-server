@@ -4,10 +4,12 @@ import { ChatGateway } from './chat.gateway';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { WsAuthGuard } from './guards/ws-auth.guard';
+import { MatchmakingModule } from 'src/matchmaking/matchmaking.module';
 
 @Module({
   imports:[
     PrismaModule,
+    MatchmakingModule,
     JwtModule.registerAsync({
       imports:[ConfigModule],
       inject:[ConfigService],
