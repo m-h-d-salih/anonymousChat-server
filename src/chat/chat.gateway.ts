@@ -84,7 +84,7 @@ import { v4 as uuidv4 } from 'uuid';
     }
 
      // Add to queue
-     await this.matchmaking.joinQueue(user.id);
+     await this.matchmaking.joinQueue(user.id); 
      console.log(`${user.displayName} is searching for a stranger...`)
       // Try to find a match
     const match = await this.matchmaking.tryMatch();
