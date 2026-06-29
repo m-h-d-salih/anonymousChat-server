@@ -13,6 +13,7 @@ import { UseGuards } from "@nestjs/common";
 import { WsAuthGuard } from "./guards/ws-auth.guard";
 import { MatchmakingService } from "src/matchmaking/matchmaking.service";
 import { v4 as uuidv4 } from 'uuid';
+import { PrismaService } from "src/prisma/prisma.service";
 
  @WebSocketGateway({
   cors:{origin:'*'}
@@ -24,8 +25,11 @@ import { v4 as uuidv4 } from 'uuid';
   // Track which user is on which socket, and which room they're in
   private userSockets=new Map<string,Socket>();
   private userRooms=new Map<string,string>();
+  private revealRequests = new Map<string, Set<string>>();
 
-  constructor(private matchmaking:MatchmakingService){}
+  constructor(private matchmaking:MatchmakingService,
+    private prisma: PrismaService
+  ){}
 
    // Called automatically when a client connects
   handleConnection(client: Socket) {
@@ -42,7 +46,8 @@ import { v4 as uuidv4 } from 'uuid';
     const roomId=this.userRooms.get(user.id);
     if(roomId){
       client.to(roomId).emit('strangerDisconnected');
-      this.userRooms.delete(user.id)
+      this.userRooms.delete(user.id);
+      this.revealRequests.delete(roomId);
     }
     this.userSockets.delete(user.id);
   }
@@ -150,6 +155,115 @@ import { v4 as uuidv4 } from 'uuid';
     client.to(roomId).emit('strangerDisconnected');
     client.leave(roomId);
     this.userRooms.delete(user.id);
+    this.revealRequests.delete(roomId);
      console.log(`${user.displayName} left room ${roomId}`);
   }
+
+  @UseGuards(WsAuthGuard)
+  @SubscribeMessage('revealRequest')
+  async handleRevealRequest(
+    @ConnectedSocket() socket:Socket,
+    @WsCurrentUser() user:any
+  ){
+    const roomId=await this.userRooms.get(user.id);
+    if(!roomId) return;
+
+     // Initialize the Set for this room if it doesn't exist
+     if(!this.revealRequests.has(roomId)){
+      this.revealRequests.set(roomId,new Set());
+     }
+     const reveals=this.revealRequests.get(roomId)!;
+     if(reveals.has(user.id)){
+    return { event: 'error', data: 'Already requested reveal' };
+  }
+  reveals.add(user.id);
+
+  if (reveals.size === 2) {
+    // Both agreed — reveal both profiles to each other
+    const sockets = Array.from(this.server.sockets.sockets.values())
+      .filter(s => s.rooms.has(roomId));
+
+    for (const sock of sockets) {
+      const otherSock = sockets.find(s => s !== sock);
+      if (otherSock) {
+        sock.emit('profileRevealed', {
+          displayName: otherSock.data.user.displayName,
+          email: otherSock.data.user.email,
+          profilePictureUrl: otherSock.data.user.profilePictureUrl,
+          bio: otherSock.data.user.bio,
+          userId: otherSock.data.user.id,
+        });
+      }
+    }
+    console.log(`Mutual reveal in room ${roomId}`);
+  } else {
+    // First person to reveal — notify the other
+    socket.to(roomId).emit('revealPending', {
+      message: 'Stranger wants to reveal their identity',
+    });
+    console.log(`${user.displayName} requested reveal in room ${roomId}`);
+  }
+  }
+
+  @UseGuards(WsAuthGuard)
+@SubscribeMessage('addContact')
+async handleAddContact(
+  @ConnectedSocket() client: Socket,
+  @WsCurrentUser() user: any,
+) {
+  const roomId=this.userRooms.get(user.id);
+  if(!roomId) return;
+  const reveals=this.revealRequests.get(roomId);
+    if (!reveals || reveals.size < 2) {
+    return { event: 'error', data: 'Both must reveal first' };
+  }
+   // Find the other user in the room
+  const sockets = Array.from(this.server.sockets.sockets.values())
+    .filter(s => s.rooms.has(roomId));
+  const otherSocket=sockets.find(s=>s.data.user.id!==user.id);
+
+  if(!otherSocket) return;
+
+  const otherUser=otherSocket.data.user;
+
+   // Check if contact already exists
+   const existing=await this.prisma.contact.findFirst({
+    where:{
+      OR:[
+        { user1Id: user.id, user2Id: otherUser.id },
+        { user1Id: otherUser.id, user2Id: user.id },
+      ]
+    }
+   })
+   if(existing){
+    return { event: 'error', data: 'Already in contacts' };
+   }
+
+    // Create the contact
+    const contact=await this.prisma.contact.create({
+      data:{
+        user1Id:user.id,
+        user2Id:otherUser.id
+      }
+    });
+
+    // Notify both
+    client.emit('contactAdded',{
+      contactId: contact.id,
+       user: {
+      id: otherUser.id,
+      displayName: otherUser.displayName,
+      profilePictureUrl: otherUser.profilePictureUrl,
+    },
+    })
+      otherSocket.emit('contactAdded', {
+    contactId: contact.id,
+    user: {
+      id: user.id,
+      displayName: user.displayName,
+      profilePictureUrl: user.profilePictureUrl,
+    },
+  });
+   console.log(`Contact created: ${user.displayName} + ${otherUser.displayName}`);
+}
  }
