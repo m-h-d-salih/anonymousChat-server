@@ -6,6 +6,7 @@ import { ChatModule } from './chat/chat.module';
 import { RedisModule } from './redis/redis.module';
 import { MatchmakingService } from './matchmaking/matchmaking.service';
 import { MatchmakingModule } from './matchmaking/matchmaking.module';
+import { ContactChatModule } from './contact-chat/contact-chat.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { MatchmakingModule } from './matchmaking/matchmaking.module';
     ChatModule,
     RedisModule,
     MatchmakingModule,
+    ContactChatModule,
   ],
   providers: [MatchmakingService],
 })
