@@ -46,4 +46,10 @@ googleAuth() {
 googleAuthCallback(@Req() req: Request) {
   return this.auth.googleLogin((req as any).user);
 }
+
+@Get('health')
+health() {
+  return { status: 'ok', timestamp: new Date().toISOString() };
+}
+
 }
