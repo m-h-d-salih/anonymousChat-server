@@ -8,7 +8,9 @@ import { ContactChatService } from './contact-chat.service';
 import { UseGuards } from '@nestjs/common';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: {
+    origin: process.env.FRONTEND_URL || '*',
+  },
 })
 export class ContactChatGateway {
    @WebSocketServer()
